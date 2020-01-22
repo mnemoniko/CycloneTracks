@@ -39,7 +39,7 @@ vlon = lon[1:end-1,1:end-1];
 
 #Calculate vorticity part 2 - further apart - EDGE EFFECTS!
 
-n = 4; #Points shifted, must be even
+n = 6; #Points shifted, must be even
 dv = v[1+n:end,:] - v[1:end-n,:];
 du = u[:,1+n:end] - u[:,1:end-n];
 dx = xc[n+1] - xc[1];
