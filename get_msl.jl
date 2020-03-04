@@ -2,31 +2,8 @@
 # Read mean sea level pressure from ERA5 netcdf files
 # Then, subset for the Southern Ocean and for specific times
 
-# Set user-based parameters (move to a separate file later?)
-#Directory containing ERA5 files
-era5_dir = "./ERA5"
-#NetCDF file to save processed data
-outfile = "ERA5_2018_2019_msl.nc"
-
-#Start time:
-Year_S = 2019
-Month_S = 8
-Day_S = 24
-Hour_S = 6
-
-#End time:
-Year_E = 2019
-Month_E = 8
-Day_E = 27
-Hour_E = 0
-
-#Latitude:
-lat_min = -88
-lat_max = -60
-
-#Longitude (0 to 360):
-lon_min = 160
-lon_max = 220
+# Import user-based parameters (move to a separate file later?)
+include("user_parameters.jl")
 
 # Check input
 isdir(era5_dir)
@@ -52,44 +29,48 @@ lon = ncread(era5_dir*"/"*files[1],"longitude")
 scale = ncgetatt(era5_dir*"/"*files[1],"msl","scale_factor")
 offset = ncgetatt(era5_dir*"/"*files[1],"msl","add_offset")
 
-#Initialize time and msl variables
-msl_time = 0;
-msl = 0;
+# Subset for location based on lat/lon
+ind = findall(lon .>= lon_min)
+lo1 = ind[1]
+ind = findall(lon .<= lon_max)
+lo2 = ind[end]
+lon = lon[lo1:lo2]
 
-# Read in msl from relevant files
-# Variables initialized in for loops are LOCAL ONLY
-for file in files #Need to put all this in a function?
-    println(@isdefined msl)
-    #Check if file falls in time range
-    t = ncread(era5_dir*"/"*file,"time")
+ind = findall(lat .<= lat_max)
+la1 = ind[1]
+ind = findall(lat .>= lat_min)
+la2 = ind[end]
+lat = lat[la1:la2]
+
+# Read in msl and time for files that cover time period of interest
+for i in 1:nfiles
+    println("i is ", i)
+    t = ncread(era5_dir*"/"*files[i],"time")
     if t[1] > time2 || t[end] < time1
+        println("Skipping file "*files[i])
         continue
     end
-    #If it does, save msl and time
-    msl_temp = ncread(era5_dir*"/"*file,"msl")
-    if msl == 0 #first file read in
-        msl = msl_temp
-        msl_time = t
+
+    msl_temp = ncread(era5_dir*"/"*files[i],"msl")
+    msl_temp = msl_temp[lo1:lo2,la1:la2,:]
+    if @isdefined msl
+        global msl_time = cat(msl_time, t; dims=1)
+        global msl = cat(msl,msl_temp; dims=3)
     else
-        msl = cat(msl, msl_temp; dims=3)
-        time = cat(time, t; dims=1)
+        global msl_time = t
+        global msl = msl_temp
     end
 end
 
-# Subset for location based on lat/lon
-ind = findall(lon .>= lon_min);
-lo1 = ind[1];
-ind = findall(lon .<= lon_max);
-lo2 = ind[end];
-lon = lon[lo1:lo2];
+# Subset for time
+ind = findall(msl_time .>= time1)
+t1 = ind[1]
+ind = findall(msl_time .<= time2)
+t2 = ind[end]
+msl_time = msl_time[t1:t2]
 
-ind = findall(lat .<= lat_max);
-la1 = ind[1];
-ind = findall(lat .>= lat_min);
-la2 = ind[end];
-lat = lat[la1:la2];
-
-msl = msl[lo1:lo2,la1:la2,:]
+#Apply subsets to msl
+msl = msl[:,:,t1:t2]
 
 # Write to smaller output file that contain subsetted values
 
@@ -104,14 +85,14 @@ global_att = Dict("History" =>
     "Created on "*Dates.format(Dates.now(),"yyyy u d"))
 
 # Create file and write out variables
-if isfile(outfile)
-    rm outfile
-end
+#if isfile(outfile)
+#    rm outfile
+#end
 
 nccreate(outfile, "msl",
     "longitude", lon, lon_att,
     "latitude", lat, lat_att,
-    "time", time, time_att,
+    "time", msl_time, time_att,
     atts=msl_att, gatts=global_att)
 
 ncwrite(msl,outfile,"msl")
