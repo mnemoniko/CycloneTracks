@@ -24,3 +24,8 @@ lat_max = -60
 #Longitude (0 to 360):
 lon_min = 160
 lon_max = 220
+
+#Cyclone tracking parameters:
+#Max and min depth of cyclone in Pa
+max_depth = 2000
+min_depth = 100
